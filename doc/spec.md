@@ -26,15 +26,31 @@ standard/dual/quad SPI仅仅定义了接口的传输线的数量。不同的flas
 flash controller 从外面接收AXI传过来的交易，将其转换为SPI的COMMAND。
 * 低24MB 地址为普通memory，高4KB地址为flash controller 内部寄存器。
 
-## Flash Controller Reg
+## Flash Controller Reg Address
 * R 代表该寄存器是可读的
 * W 代表该寄存器是可写的
 * reset val 为寄存器的复位值
 
-|reg idx| reg name | property |reset val| Note|
-|:------|:--------:|:--------:|:-------:|:---:|
-|0      |Command 0 | RW       |
+|reg idx|address| reg name | property |reset val| Note|
+|:------|:-----:|:--------:|:--------:|:-------:|:---:|
+|0      |0x1800000|Command 0 | RW     |0x81f0083c|1,2 |
+|1      |0x1800004|Command 1 | RW     |0x82800804| 3  |
+|2      |0x1800008|Command 2 | RW     |0x00000000|    |
+|3      |0x180000c|Command 3 | RW     |0x00000000|    |
+|4      |0x1800010|Command 4 | RW     |0x00000000|    |
+|5      |0x1800014|Command 5 | RW     |0x00000000|    |
+|6      |0x1800018|Command 6 | RW     |0x00000000|    |
+|7      |0x180001c|Command 7 | RW     |0x00000000|    |
+|8      |0x1800020|addr buffer|RW     |0x00000000|  4 |
+|9      |0x1800024|data buffer|RW     |0X00000000| 5  |
+|       |0x1800100|Command 0 trigger|W  |          | 6    |
 
 
 
-1. AXI master 向 Flash memory空间的读交易将触发0号寄存器中的命令。该读命令的地址为AXI master发送的读交易的读地址通道中的地址。 并且命令返回的数据在AXI read transaction的读数据通道返回。由于0号寄存器的复位值为"read data"命令，因此上电后可以直接从flash读数据。
+
+
+1. AXI master 向 Flash memory空间的读交易将触发0号寄存器中的命令。该读命令的地址为AXI master发送的读交易的读地址通道中的地址。 并且命令返回的数据在AXI read transaction的读数据通道返回。由于0号寄存器的复位值为"read data"命令，因此上电后可以直接从flash读数据。用户可以更改Command 0内容。
+2. 0x81f0083c为”READ DATA”命令，standard spi传输、8B的读数据,3B 地址。
+3. 0x82800804为“READ STATUS REGISTER" 命令，standard spi传输、1B的读数据。
+4. 除了自动触发COMMAND（如向memory空间的读会触发Command 0), 其它命令的地址阶段将会使用addr buf寄存器中的值。
+5. data buffer位宽为64B,地址跨度从0x1800024~0x1800060.从flash返回的数据会存到这里（Command 0 和 Command 1 返回的数据不会存入data buffer)。向flash(而不是flash controller)发送的数据来自这里。 
