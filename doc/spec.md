@@ -77,4 +77,15 @@
 4. 触发中断。
 
 ## Flash Controller 使用例程
-    三
+### read from flash
+    1. 读 0x1800100，触发READ STATUS REGISTER获取flash状态。
+    2. 若发现WIP为高，回到1，否则向flash controller memory发送读命令。
+    3. 数据返回。
+### erase flash
+    1. 向 flash controller addr buffer写入相应地址。
+    2. 向 flash controller command 寄存器写入erase command(如写入6号寄存器)。
+    3. 对地址0x1800114发送写交易，flash controller会自动发送erase command 到flash。
+    4. 由于flash erase 的时间在100ms级，因此需要阻塞住该进程，等待flash控制器发送中断。
+    5. 收到flash controller的中断代表上一次的命令已经完成。
+
+
