@@ -1,29 +1,29 @@
 # interact with SPI flash
-与spi的最小交互单位为一个COMMAND（以下称之为命令）。每个命令由instruction phase(以下称之为指令阶段)、address phase(地址阶段)、dummy phase（dummy阶段）、data phase（数据阶段）组成。
+    与spi的最小交互单位为一个COMMAND（以下称之为命令）。每个命令由instruction phase(以下称之为指令阶段)、address phase(地址阶段)、dummy phase（dummy阶段）、data phase（数据阶段）组成。
 ## standard/dual/quad SPI
-standard/dual/quad SPI仅仅定义了接口的传输线的数量。不同的flash厂商对SPI有自己的规定。但大部分都遵守以下约定。
-* 指令码05H为"read status register", standard SPI传输。
-* 向SPI flash传输任何命令前（除了READ STATUS REGISTER命令），最好确认flash不处于忙状态（即Write In Process为低）。
-* 指令码03H为"read data", standard SPI传输。
-* 指令码06H为"write enable"，standard SPI传输。
-* "Dual Output Fast Read"，指令阶段、地址阶段、dummy阶段为standard SPI,数据阶段为dual SPI
-* "Quad Output Fast Read",指令阶段、地址阶段、dummy阶段为standard SPI,数据阶段为quad SPI
-* "Dual Input/Output(I/O) Fast Read",指令阶段、为standard SPI,地址阶段、dummy 阶段、数据阶段为duad SPI
-* "Qual Input/Output(I/O) Fast Read",指令阶段、为standard SPI,地址阶段、dummy 阶段、数据阶段为quad SPI
+    standard/dual/quad SPI仅仅定义了接口的传输线的数量。不同的flash厂商对SPI有自己的规定。但大部分都遵守以下约定。
+    * 指令码05H为"read status register", standard SPI传输。
+    * 向SPI flash传输任何命令前（除了READ STATUS REGISTER命令），最好确认flash不处于忙状态（即Write In Process为低）。
+    * 指令码03H为"read data", standard SPI传输。
+    * 指令码06H为"write enable"，standard SPI传输。
+    * "Dual Output Fast Read"，指令阶段、地址阶段、dummy阶段为standard SPI,数据阶段为dual SPI
+    * "Quad Output Fast Read",指令阶段、地址阶段、dummy阶段为standard SPI,数据阶段为quad SPI
+    * "Dual Input/Output(I/O) Fast Read",指令阶段、为standard SPI,地址阶段、dummy 阶段、数据阶段为duad SPI
+    * "Qual Input/Output(I/O) Fast Read",指令阶段、为standard SPI,地址阶段、dummy 阶段、数据阶段为quad SPI
 
 ## Command reg
 |           | instruction valid | instruction code|address valid|address width|addr wire width|dummy width|dummy wire width|data valid|data width|data input|data wire width|
 |:----------|:-----------------:|:---------------:|:-----------:|:-----------:|:-------------:|:---------:|:----------:|:----------:|:-----------------:|:---:|:-------------:|
 | Bit Field |     31            | 30:23           |22           |21:20        |19:18          |17:14      |   13:12      |11   |10:3          |2    |1:0|
-* xxx valid 代表该阶段有效。如address valid 为0，代表这个命令没有地址阶段。 
-* address width: 00 代表地址长度为1B, 01 为2 Byte， 10 为3B，11为4B。
-* xxx wire width:00 代表该阶段的传输为standard SPI, 01 为dual SPI， 10 为quad SPI， 11 reserved.
-* dummy width代表dummy 传输 "dummy width"个时钟周期，4‘b0000代表无dummy phase,4'b1111代表15个时钟周期。
-* 数据阶段字节数 = data width + 1。意味着最低为一个字节，最高为256B.(注：当前的设计内部数据寄存器配置为64B，因此该字段虽然有8位，但请仅仅使用低6位)。
+    * xxx valid 代表该阶段有效。如address valid 为0，代表这个命令没有地址阶段。 
+    * address width: 00 代表地址长度为1B, 01 为2 Byte， 10 为3B，11为4B。
+    * xxx wire width:00 代表该阶段的传输为standard SPI, 01 为dual SPI， 10 为quad SPI， 11 reserved.
+    * dummy width代表dummy 传输 "dummy width"个时钟周期，4‘b0000代表无dummy phase,4'b1111代表15个时钟周期。
+    * 数据阶段字节数 = data width + 1。意味着最低为一个字节，最高为256B.(注：当前的设计内部数据寄存器配置为64B，因此该字段虽然有8位，但请仅仅使用低6位)。
 
 ## Flash Controller memory map
 ![](flash_controller_memory.png)
-flash controller 从外面接收AXI传过来的交易，将其转换为SPI的COMMAND。
+* flash controller 从外面接收AXI传过来的交易，将其转换为SPI的COMMAND。
 * 低24MB 地址为普通memory，高4KB地址为flash controller 内部寄存器。
 
 ## Flash Controller Reg Address
@@ -31,7 +31,7 @@ flash controller 从外面接收AXI传过来的交易，将其转换为SPI的COM
 * W 代表该寄存器是可写的
 * reset val 为寄存器的复位值
 
-|reg idx|address| reg name | property |reset val| Note|
+|Reg Idx|Address| Reg Name | Property |Reset val| Note|
 |:------|:-----:|:--------:|:--------:|:-------:|:---:|
 |0      |0x1800000|Command 0 | RW     |0x81f0083c|1,2 |
 |1      |0x1800004|Command 1 | RW     |0x82800804| 3  |
@@ -54,3 +54,27 @@ flash controller 从外面接收AXI传过来的交易，将其转换为SPI的COM
 3. 0x82800804为“READ STATUS REGISTER" 命令，standard spi传输、1B的读数据。
 4. 除了自动触发COMMAND（如向memory空间的读会触发Command 0), 其它命令的地址阶段将会使用addr buf寄存器中的值。
 5. data buffer位宽为64B,地址跨度从0x1800024~0x1800060.从flash返回的数据会存到这里（Command 0 和 Command 1 返回的数据不会存入data buffer)。向flash(而不是flash controller)发送的数据来自这里。 
+## Flash Controller Command Trigger
+    出入对Flash Controller的性能和可重用性考虑，设计了两种触发命令的方式。
+* 对memory空间的读将触发Command 0(可修改Command 0 的内容）。
+* 对特定REG空间的读/写将触发Command。
+* RT 代表读触发， WT 代表写触发（write trigger)。
+
+|Trigger Type|Address Arrange|Trigger Command| Note |
+|:----------:|:-------------:|:-------------:|:----:|
+|RT          |0x0000000-0x17fffff|Command 0| 1|
+|RT          |0x1800100-0x1800103|Command 1| 2|
+|RT          |0x1800104-0x1800107|Command 2| 3|
+|RT          |0x1800108-0x180010b|Command 3| 3|
+|WT          |0x180010c-0x180010f|Command 4| 3|
+|WT          |0x1800110-0x1800113|Command 5| 3|
+|WT          |0x1800114-0x1800117|Command 6| 3,4|
+|WT          |0x1800118-0x180011c|Command 7| 3,4|
+
+1. 读memory地址触发Command 0 ,方便快速从flash 读数据。
+2. 读该地址触发Command 1（READ STATUS REG），方便快速获取flash状态。
+3. 自定义。
+4. 触发中断。
+
+## Flash Controller 使用例程
+    三
