@@ -19,7 +19,7 @@
     * address width: 00 代表地址长度为1B, 01 为2 Byte， 10 为3B，11为4B。
     * xxx wire width:00 代表该阶段的传输为standard SPI, 01 为dual SPI， 10 为quad SPI， 11 reserved.
     * dummy width代表dummy 传输 "dummy width"个时钟周期，4‘b0000代表无dummy phase,4'b1111代表15个时钟周期。
-    * 数据阶段字节数 = data width + 1。意味着最低为一个字节，最高为256B.(注：当前的设计内部数据寄存器配置为64B，因此该字段虽然有8位，但请仅仅使用低6位)。
+    * 数据阶段字节数 = data width + 1。意味着最低为一个字节，最高为256B。
 
 ## Flash Controller memory map
 ![](flash_controller_memory.png)
@@ -35,15 +35,15 @@
 |:------|:-----:|:--------:|:--------:|:-------:|:---:|
 |0      |0x1800000|Command 0 | RW     |0x81f0083c|1,2 |
 |1      |0x1800004|Command 1 | RW     |0x82800804| 3  |
-|2      |0x1800008|Command 2 | RW     |0x00000000|    |
+|2      |0x1800008|Command 2 | RW     |0x81600838| 6  |
 |3      |0x180000c|Command 3 | RW     |0x00000000|    |
-|4      |0x1800010|Command 4 | RW     |0x00000000|    |
-|5      |0x1800014|Command 5 | RW     |0x00000000|    |
+|4      |0x1800010|Command 4 | RW     |0x83000000|7   |
+|5      |0x1800014|Command 5 | RW     |0x90600000|  8 |
 |6      |0x1800018|Command 6 | RW     |0x00000000|    |
 |7      |0x180001c|Command 7 | RW     |0x00000000|    |
 |8      |0x1800020|addr buffer|RW     |0x00000000|  4 |
 |9      |0x1800024|data buffer|RW     |0X00000000| 5  |
-|       |0x1800100|Command 0 trigger|W  |          | 6    |
+
 
 
 
@@ -53,7 +53,10 @@
 2. 0x81f0083c为”READ DATA”命令，standard spi传输、8B的读数据,3B 地址。
 3. 0x82800804为“READ STATUS REGISTER" 命令，standard spi传输、1B的读数据。
 4. 除了自动触发COMMAND（如向memory空间的读会触发Command 0), 其它命令的地址阶段将会使用addr buf寄存器中的值。
-5. data buffer位宽为64B,地址跨度从0x1800024~0x1800060.从flash返回的数据会存到这里（Command 0 和 Command 1 返回的数据不会存入data buffer)。向flash(而不是flash controller)发送的数据来自这里。 
+5. data buffer位宽为4B,从flash返回的数据会存到这里（Command 0 和 Command 1 返回的数据不会存入data buffer)。向flash发送的数据需要先存入这里（向flash program的数据不推荐放入这里，因为该寄存器仅有4B。例程中给出了如何向flash program)。 
+6. 0x81600838命令为“Page Programing"命令， standard spi传输、写数据、数据8B。
+7. 0x83000000命令为“Write Enable"命令， standard spi传输、无地址、dummy、数据阶段。
+8. 0x90600000命令为“Sector Erase"命令， standard spi传输、3B地址、无dummy、无数据阶段。
 ## Flash Controller Command Trigger
     出入对Flash Controller的性能和可重用性考虑，设计了两种触发命令的方式。
 * 对memory空间的读将触发Command 0(可修改Command 0 的内容）。
@@ -64,17 +67,19 @@
 |:----------:|:-------------:|:-------------:|:----:|
 |RT          |0x0000000-0x17fffff|Command 0| 1|
 |RT          |0x1800100-0x1800103|Command 1| 2|
-|RT          |0x1800104-0x1800107|Command 2| 3|
+|WT          |0x1800104-0x1800107|Command 2| 5|
 |RT          |0x1800108-0x180010b|Command 3| 3|
-|WT          |0x180010c-0x180010f|Command 4| 3|
-|WT          |0x1800110-0x1800113|Command 5| 3|
-|WT          |0x1800114-0x1800117|Command 6| 3,4|
-|WT          |0x1800118-0x180011c|Command 7| 3,4|
+|WT          |0x180010c-0x180010f|Command 4|  |
+|WT          |0x1800110-0x1800113|Command 5|  |
+|WT          |0x1800114-0x1800117|Command 6| 3|
+|WT          |0x1800118-0x180011c|Command 7| 3|
 
 1. 读memory地址触发Command 0 ,方便快速从flash 读数据。
 2. 读该地址触发Command 1（READ STATUS REG），方便快速获取flash状态。
 3. 自定义。
-4. 触发中断。
+4. 。
+5. 写memory地址触发Command 2,flash controller根据该命令中数据宽度data width字段向flash programing，并根据每次AXI 写交易数据宽度减少data width 字段。如该命令data width字段缺省值为8B，若本次AXI write transaction 的写数据宽度为4B，则该命令的data width字段变为4B，flash controller等待下一个4B的数据。
+6. 推荐从flash读数据和向flash写数据都走memory空间，erase 操作和其他操作可以使用命令寄存器完成。想要实现XIP 功能可以自定义Command 0, 在从memory空间读数据。
 
 ## Flash Controller 使用例程
 ### read from flash
@@ -83,9 +88,15 @@
     3. 数据返回。
 ### erase flash
     1. 向 flash controller addr buffer写入相应地址。
-    2. 向 flash controller command 寄存器写入erase command(如写入6号寄存器)。
-    3. 对地址0x1800114发送写交易，flash controller会自动发送erase command 到flash。
-    4. 由于flash erase 的时间在100ms级，因此需要阻塞住该进程，等待flash控制器发送中断。
-    5. 收到flash controller的中断代表上一次的命令已经完成。
+    2. 读 0x1800100触发 READ STATUS REGISTER获取flash状态。
+    3. 若发现WIP为高，回到2， 否则写0x180010c触发命令4(Write enable)。
+    4. 写 0x1800110触发命令5(sector erase)。
+
+### flash page programing
+    1. 写2号寄存器，调整本次programing的size.典型值为256B（一般flash page为256B，page programing 最多支持256字节）
+    2. 要写的page已擦除。
+    3. 读 0x1800100，触发READ STATUS REGISTER获取flash状态。
+    4. 若发现WIP为高，回到3，否则连续向memory空间写数据。数据的总宽度需要和步骤1中的size大小匹配。（如步骤一配置为256B，但AXI总线位宽8B，这就需要最少连续对flash controller写256/8次）。
+
 
 
