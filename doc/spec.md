@@ -19,7 +19,7 @@
     * address width: 00 代表地址长度为1B, 01 为2 Byte， 10 为3B，11为4B。
     * xxx wire width:00 代表该阶段的传输为standard SPI, 01 为dual SPI， 10 为quad SPI， 11 reserved.
     * dummy width代表dummy 传输 "dummy width"个时钟周期，4‘b0000代表无dummy phase,4'b1111代表15个时钟周期。
-    * 数据阶段字节数 = data width + 1。意味着最低为一个字节，最高为256B。
+    * 数据阶段字节数 = data width + 1。意味着最低为一个字节，最高为256B。对于读指令，由于资源限制，静止数据阶段超过32B；对于写指令则不作相应限制，因为写数据不会存如flash controller内部的缓存中。
 
 ## Flash Controller memory map
 ![](flash_controller_memory.png)
@@ -49,8 +49,8 @@
 
 
 
-1. AXI master 向 Flash memory空间的读交易将触发0号寄存器中的命令。该读命令的地址为AXI master发送的读交易的读地址通道中的地址。 并且命令返回的数据在AXI read transaction的读数据通道返回。由于0号寄存器的复位值为"read data"命令，因此上电后可以直接从flash读数据。用户可以更改Command 0内容。
-2. 0x81f0083c为”READ DATA”命令，standard spi传输、8B的读数据,3B 地址。
+1. AXI master 向 Flash memory空间的读交易将触发0号寄存器中的命令。该读命令的地址阶段为AXI master发送的读交易的读地址通道中的地址。 并且命令返回的数据在AXI read transaction的读数据通道返回。由于0号寄存器的复位值为"read data"命令，因此上电后可以直接从flash读数据。用户可以更改Command 0内容。
+2. 0x81f0083c为”READ DATA”命令，standard spi传输、8B的读数据,3B 地址。若用户想要自定义该寄存器中的命令，禁止数据阶段超过32B。
 3. 0x82800804为“READ STATUS REGISTER" 命令，standard spi传输、1B的读数据。
 4. 除了自动触发COMMAND（如向memory空间的读会触发Command 0), 其它命令的地址阶段将会使用addr buf寄存器中的值。
 5. data buffer位宽为4B,从flash返回的数据会存到这里（Command 0 和 Command 1 返回的数据不会存入data buffer)。向flash发送的数据需要先存入这里（向flash program的数据不推荐放入这里，因为该寄存器仅有4B。例程中给出了如何向flash program)。 
@@ -58,8 +58,9 @@
 7. 0x83000000命令为“Write Enable"命令， standard spi传输、无地址、dummy、数据阶段。
 8. 0x90600000命令为“Sector Erase"命令， standard spi传输、3B地址、无dummy、无数据阶段。
 ## Flash Controller Command Trigger
-    出入对Flash Controller的性能和可重用性考虑，设计了两种触发命令的方式。
+    出入对Flash Controller的性能和可重用性考虑，设计了三种触发命令的方式。
 * 对memory空间的读将触发Command 0(可修改Command 0 的内容）。
+* 对memory空间的写将触发Command 2(可修改Command 2 的内容) 。
 * 对特定REG空间的读/写将触发Command。
 * RT 代表读触发， WT 代表写触发（write trigger)。
 
