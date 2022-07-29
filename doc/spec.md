@@ -85,8 +85,8 @@
 1. 读memory地址触发Command 0 ,方便快速从flash 读数据。
 2. 读该地址触发Command 1（READ STATUS REG），方便快速获取flash状态。
 3. 自定义。
-4. 
-5. 写memory地址触发Command 2,flash controller根据该命令中数据宽度data width字段向flash programming，并根据每次AXI 写交易数据宽度减少data width 字段。如该命令data width字段缺省值为8B，若本次AXI write transaction 的写数据宽度为4B，则该命令的data width字段自动变为4B，flash controller等待下一个4B的数据。
+4. flash controller在写命令完成前，不允许接收任何其它指令。
+5. 写memory地址触发Command 2,flash controller根据该命令中数据宽度data width字段向flash programming，并根据每次AXI 写交易数据宽度减少data width 字段。如该命令data width字段缺省值为8B，若本次AXI write transaction 的写数据宽度为4B，则该命令的data width字段自动变为4B，flash controller等待下一个4B的数据。由于4的限制，flash controller在等待下一个4B数据的到来之前，不会接收其它请求。
 6. 推荐从flash读数据和向flash写数据都走memory空间，erase 操作和其他操作可以使用命令寄存器完成。想要实现XIP 功能可以自定义Command 0, 再从memory空间读数据。
 
 ## Flash Controller 使用例程
